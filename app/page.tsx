@@ -34,6 +34,7 @@ export default function Home() {
     const url = "ws://192.168.1.116:9001";
     const mqttClient = mqtt.connect(url);
     clientRef.current = mqttClient;
+    mqttClient.subscribe("trashrobot/status");
 
     mqttClient.on("connect", () => {
       setStatus("Connected to MQTT");
@@ -42,19 +43,23 @@ export default function Home() {
       setLogs(prev => [...prev, "✅ Connected to MQTT"]);
     });
 
-    mqttClient.on("message", (topic, message) => {
-      const payload = message.toString();
-      if (topic === "logs") {
-        setLogs(prev => [...prev, payload]);
-      } else if (topic === "destination") {
-        try {
-          const data = JSON.parse(payload);
-          setDestination(data.location || "Unknown");
-        } catch {
-          setDestination(payload);
-        }
-      }
-    });
+mqttClient.on("message", (topic, message) => {
+  const payload = message.toString();
+
+  if (topic === "logs") {
+    setLogs(prev => [...prev, payload]);
+  } else if (topic === "destination") {
+    try {
+      const data = JSON.parse(payload);
+      setDestination(data.location || "Unknown");
+    } catch {
+      setDestination(payload);
+    }
+  } else if (topic === "trashrobot/status") {
+    setLogs(prev => [...prev, payload]);
+  }
+});
+
 
     mqttClient.on("error", (err) => {
       console.error("MQTT Error:", err);
@@ -77,6 +82,15 @@ export default function Home() {
 
     busyRef.current = true;
     const current = queueRef.current.shift()!;
+
+    if (!busyRef.current && lastLocRef.current === current.location && current.location !== "Home") {
+      setLogs(prev => [...prev, `⚠️ I'm already here, silly! (${current.location})`]);
+      clientRef.current?.publish("trashrobot/status", `⚠️ I'm already here, silly! (${current.location})`);
+      busyRef.current = false;
+      processNext();
+      return;
+    }
+
     lastLocRef.current = current.location;
     if (current.location !== "Home") lastDistRef.current = current.distance;
 
