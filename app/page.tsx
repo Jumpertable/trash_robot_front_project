@@ -46,11 +46,11 @@ mqttClient.on("message", (topic, message) => {
 
 
   // Send button payloads
-  const sendCommand = (location, distance) => {
+  const sendCommand = (location: string, distance: number) => {
     if (!client) return;
     const payload = JSON.stringify({ location, distance });
     client.publish("buttons/robot", payload);
-    setLogs((prev) => [...prev, `📦 Sent: ${location}`]);
+    setLogs((prev) => [...prev, `Sent: ${location}`]);
   };
 
   const clearLogs = () => setLogs([]);
