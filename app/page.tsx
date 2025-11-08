@@ -69,7 +69,6 @@ export default function Home() {
 
 
   //Process next destination
-
   const processNext = () => {
     if (queueRef.current.length === 0) {
       busyRef.current = false;
@@ -84,7 +83,6 @@ export default function Home() {
     const direction = current.location === "Home" ? "return" : "go";
     let dist = current.distance;
 
-    // Send initial update
     clientRef.current?.publish("destination", JSON.stringify({
       location: current.location,
       distance: current.distance,
@@ -95,6 +93,7 @@ export default function Home() {
       if (cancelActiveRef.current) {
         clearInterval(intervalRef.current!);
         intervalRef.current = null;
+        busyRef.current = false;
         return;
       }
 
@@ -118,18 +117,14 @@ export default function Home() {
 
         if (direction !== "return") {
           visitedRef.current.push({ location: current.location, timestamp: Date.now() });
-          setLogs(prev => [...prev, `🟢 Arrived at ${current.location}`]);
+          setLogs(prev => [...prev, `Arrived at ${current.location}`]);
         }
-
-        // Continue with next destination after delay
         setTimeout(processNext, 3000);
       }
     }, 1000);
   };
 
-  // ========================
   // Add new destination
-  // ========================
   const addDestination = (loc: string, dist: number) => {
     if (!busyRef.current && lastLocRef.current === loc && loc !== "Home") {
       setLogs(prev => [...prev, `Already at ${loc}!`]);
@@ -147,26 +142,31 @@ export default function Home() {
   };
 
 
-  //Cancel and return home
+//Cancel and return home
+const cancel = () => {
+  setLogs(prev => [...prev, "⚠️ Cancel pressed — returning home"]);
+  clientRef.current?.publish("cancel", "true");
 
-  const cancel = () => {
-    if (intervalRef.current) clearInterval(intervalRef.current);
-    queueRef.current = [];
-    busyRef.current = false;
-    cancelActiveRef.current = true;
 
-    addDestination("Home", lastDistRef.current);
+  if (intervalRef.current) {
+    clearInterval(intervalRef.current);
+    intervalRef.current = null;
+  }
 
-    setTimeout(() => {
-      busyRef.current = true;
-      cancelActiveRef.current = false;
-      processNext();
-    }, 1000);
-  };
+  cancelActiveRef.current = true;
+  queueRef.current = [];
 
-  //
+  if (lastLocRef.current !== "Home") {
+    queueRef.current.push({ location: "Home", distance: lastDistRef.current });
+  }
+
+  processNext();
+
+  cancelActiveRef.current = false;
+  busyRef.current = true;
+};
+
   //Send command
-
   const sendCommand = (loc: string, dist: number) => {
     clientRef.current?.publish("buttons/robot", JSON.stringify({ location: loc, distance: dist }));
     setLogs(prev => [...prev, `📦 Sent: ${loc}`]);
