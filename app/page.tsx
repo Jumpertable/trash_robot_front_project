@@ -1,106 +1,221 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import mqtt from "mqtt";
 
+interface Destination {
+  location: string;
+  distance: number;
+}
+
+interface Visited {
+  location: string;
+  timestamp: number;
+}
+
 export default function Home() {
-  const [client, setClient] = useState<mqtt.MqttClient | null>(null);
-  const [logs, setLogs] = useState<string[]>([]);
   const [status, setStatus] = useState("Disconnected");
-  const [destination, setDestination] = useState<string>("");
+  const [destination, setDestination] = useState("Home");
+  const [logs, setLogs] = useState<string[]>([]);
 
-  // MQTT setup
-useEffect(() => {
-  const url = "ws://192.168.1.116:1883";
-  const mqttClient = mqtt.connect(url);
+  const clientRef = useRef<mqtt.MqttClient | null>(null);
+  const queueRef = useRef<Destination[]>([]);
+  const busyRef = useRef(false);
+  const visitedRef = useRef<Visited[]>([]);
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const lastLocRef = useRef("Home");
+  const lastDistRef = useRef(0);
+  const cancelActiveRef = useRef(false);
 
-  mqttClient.on("connect", () => {
-    setStatus("Connected to MQTT");
-    mqttClient.subscribe("destination");
-    mqttClient.subscribe("logs");
-  });
 
-mqttClient.on("message", (topic, message) => {
-  const payload = message.toString();
-  if (topic === "logs") {
-    setLogs((prev) => [...prev, payload]);
-  } else if (topic === "destination") {
-    try {
-      const data = JSON.parse(payload);
-      setDestination(data.location || "Unknown");
-    } catch {
-      setDestination(payload);
+  //mQTT setup
+
+  useEffect(() => {
+    const url = "ws://192.168.1.116:9001";
+    const mqttClient = mqtt.connect(url);
+    clientRef.current = mqttClient;
+
+    mqttClient.on("connect", () => {
+      setStatus("Connected to MQTT");
+      mqttClient.subscribe("destination");
+      mqttClient.subscribe("logs");
+      setLogs(prev => [...prev, "✅ Connected to MQTT"]);
+    });
+
+    mqttClient.on("message", (topic, message) => {
+      const payload = message.toString();
+      if (topic === "logs") {
+        setLogs(prev => [...prev, payload]);
+      } else if (topic === "destination") {
+        try {
+          const data = JSON.parse(payload);
+          setDestination(data.location || "Unknown");
+        } catch {
+          setDestination(payload);
+        }
+      }
+    });
+
+    mqttClient.on("error", (err) => {
+      console.error("MQTT Error:", err);
+      setStatus("MQTT Connection Error");
+      setLogs(prev => [...prev, "MQTT Connection Error"]);
+    });
+
+    return () => {
+      mqttClient.end();
+    };
+  }, []);
+
+
+  //Process next destination
+
+  const processNext = () => {
+    if (queueRef.current.length === 0) {
+      busyRef.current = false;
+      return;
     }
-  }
-});
 
-  mqttClient.on("error", (err) => {
-    console.error("MQTT Error:", err);
-    setStatus("MQTT Connection Error");
-  });
+    busyRef.current = true;
+    const current = queueRef.current.shift()!;
+    lastLocRef.current = current.location;
+    if (current.location !== "Home") lastDistRef.current = current.distance;
 
-  setClient(mqttClient);
+    const direction = current.location === "Home" ? "return" : "go";
+    let dist = current.distance;
 
-  return () => { mqttClient.end(); };
-}, []);
+    // Send initial update
+    clientRef.current?.publish("destination", JSON.stringify({
+      location: current.location,
+      distance: current.distance,
+      arrived: false
+    }));
+
+    intervalRef.current = setInterval(() => {
+      if (cancelActiveRef.current) {
+        clearInterval(intervalRef.current!);
+        intervalRef.current = null;
+        return;
+      }
+
+      dist = Math.max(0, dist - 20);
+
+      clientRef.current?.publish("destination", JSON.stringify({
+        location: direction === "return" ? "Home" : current.location,
+        distance: dist,
+        arrived: false
+      }));
+
+      if (dist === 0) {
+        clearInterval(intervalRef.current!);
+        intervalRef.current = null;
+
+        clientRef.current?.publish("destination", JSON.stringify({
+          location: current.location,
+          distance: 0,
+          arrived: true
+        }));
+
+        if (direction !== "return") {
+          visitedRef.current.push({ location: current.location, timestamp: Date.now() });
+          setLogs(prev => [...prev, `🟢 Arrived at ${current.location}`]);
+        }
+
+        // Continue with next destination after delay
+        setTimeout(processNext, 3000);
+      }
+    }, 1000);
+  };
+
+  // ========================
+  // Add new destination
+  // ========================
+  const addDestination = (loc: string, dist: number) => {
+    if (!busyRef.current && lastLocRef.current === loc && loc !== "Home") {
+      setLogs(prev => [...prev, `Already at ${loc}!`]);
+      return;
+    }
+
+    if (!busyRef.current && queueRef.current.length === 0 && lastLocRef.current !== "Home") {
+      queueRef.current.push({ location: "Home", distance: lastDistRef.current });
+    }
+
+    queueRef.current.push({ location: loc, distance: dist });
+
+    if (!busyRef.current) processNext();
+    else setLogs(prev => [...prev, "Robot busy. Added to queue."]);
+  };
 
 
-  //location and distination
-  const sendCommand = (location: string, distance: number) => {
-    if (!client) return;
-    const payload = JSON.stringify({ location, distance });
-    client.publish("buttons/robot", payload);
-    setLogs((prev: string[]) => [...prev, `Sent: ${location}`]);
+  //Cancel and return home
+
+  const cancel = () => {
+    if (intervalRef.current) clearInterval(intervalRef.current);
+    queueRef.current = [];
+    busyRef.current = false;
+    cancelActiveRef.current = true;
+
+    addDestination("Home", lastDistRef.current);
+
+    setTimeout(() => {
+      busyRef.current = true;
+      cancelActiveRef.current = false;
+      processNext();
+    }, 1000);
+  };
+
+  //
+  //Send command
+
+  const sendCommand = (loc: string, dist: number) => {
+    clientRef.current?.publish("buttons/robot", JSON.stringify({ location: loc, distance: dist }));
+    setLogs(prev => [...prev, `📦 Sent: ${loc}`]);
+    addDestination(loc, dist);
   };
 
   const clearLogs = () => setLogs([]);
+
+  //UI
+
+  const destinations = [
+    { name: "Home", distance: 100, color: "orange" },
+    { name: "Kitchen", distance: 100, color: "green" },
+    { name: "Living Room", distance: 150, color: "blue" },
+    { name: "Bedroom", distance: 120, color: "purple" },
+    { name: "Bathroom", distance: 200, color: "pink" },
+  ];
 
   return (
     <div className="min-h-screen bg-gray-100 flex flex-col items-center p-8">
       <h1 className="text-3xl font-bold text-gray-800 mb-6">Trash Robot Dashboard</h1>
 
-      {/* Connection Status */}
+      {/* Status */}
       <div className="mb-4 px-4 py-2 bg-white rounded-xl shadow text-gray-600">
-        Status: <strong>{status}</strong> | Current: <strong>{destination}</strong>
+        Status: <strong>{status}</strong> | Current: <strong>{destination || "—"}</strong>
       </div>
 
       {/* Buttons */}
-      <div className="grid grid-cols-2 gap-4 mb-6">
-        <button
-          onClick={() => sendCommand("Home", 100)}
-          className="bg-orange-300 hover:bg-orange-400 text-white py-3 px-6 rounded-xl shadow"
-        >
-          Go Back Home
-        </button>
-        <button
-          onClick={() => sendCommand("Kitchen", 100)}
-          className="bg-green-400 hover:bg-green-500 text-white py-3 px-6 rounded-xl shadow"
-        >
-          Kitchen
-        </button>
-        <button
-          onClick={() => sendCommand("Living Room", 150)}
-          className="bg-blue-400 hover:bg-blue-500 text-white py-3 px-6 rounded-xl shadow"
-        >
-          Living Room
-        </button>
-        <button
-          onClick={() => sendCommand("Bedroom", 120)}
-          className="bg-purple-400 hover:bg-purple-500 text-white py-3 px-6 rounded-xl shadow"
-        >
-          Bedroom
-        </button>
-        <button
-          onClick={() => sendCommand("Bathroom", 200)}
-          className="bg-pink-400 hover:bg-pink-500 text-white py-3 px-6 rounded-xl shadow"
-        >
-          Bathroom
-        </button>
+      <div className="grid grid-cols-2 gap-4 mb-6 w-full max-w-md">
+        {destinations.map(d => (
+          <button
+            key={d.name}
+            onClick={() => sendCommand(d.name, d.distance)}
+            className={`bg-${d.color}-400 hover:bg-${d.color}-500 text-white py-3 px-6 rounded-xl shadow`}
+          >
+            {d.name}
+          </button>
+        ))}
         <button
           onClick={clearLogs}
           className="bg-red-400 hover:bg-red-500 text-white py-3 px-6 rounded-xl shadow"
         >
           Clear Logs
+        </button>
+        <button
+          onClick={cancel}
+          className="bg-yellow-400 hover:bg-yellow-500 text-white py-3 px-6 rounded-xl shadow"
+        >
+          Cancel & Return Home
         </button>
       </div>
 
@@ -109,7 +224,11 @@ mqttClient.on("message", (topic, message) => {
         <h2 className="text-lg font-semibold mb-2 text-gray-700">🧾 Logs</h2>
         <div className="h-48 overflow-y-auto text-sm text-gray-600 space-y-1">
           {logs.length > 0 ? (
-            logs.map((log, i) => <div key={i}>• {log}</div>)
+            logs.map((log, i) => (
+              <div key={i} className={i === logs.length - 1 ? "font-bold text-green-600" : ""}>
+                • {log}
+              </div>
+            ))
           ) : (
             <div>No logs yet...</div>
           )}
