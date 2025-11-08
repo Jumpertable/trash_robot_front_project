@@ -180,10 +180,11 @@ const cancel = () => {
   busyRef.current = true;
 };
 
+
   //Send command
   const sendCommand = (loc: string, dist: number) => {
     clientRef.current?.publish("buttons/robot", JSON.stringify({ location: loc, distance: dist }));
-    setLogs(prev => [...prev, `📦 Sent: ${loc}`]);
+    setLogs(prev => [...prev, `Sent: ${loc}`]);
     addDestination(loc, dist);
   };
 
@@ -193,7 +194,7 @@ const cancel = () => {
 
   const destinations = [
     { name: "Home", distance: 100, color: "orange" },
-    { name: "Kitchen", distance: 100, color: "green" },
+    { name: "Kitchen", distance: 140, color: "green" },
     { name: "Living Room", distance: 150, color: "blue" },
     { name: "Bedroom", distance: 120, color: "purple" },
     { name: "Bathroom", distance: 200, color: "pink" },
