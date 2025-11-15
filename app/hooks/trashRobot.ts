@@ -7,7 +7,7 @@ interface Destination {
 }
 
 export default function useTrashRobot() {
-  const { sendCommand } = useMQTT();
+  const { sendCommand, cancel: mqttCancel } = useMQTT();
 
   const queueRef = useRef<Destination[]>([]);
   const busyRef = useRef(false);
@@ -16,7 +16,6 @@ export default function useTrashRobot() {
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const cancelActiveRef = useRef(false);
 
-  // Add onArrive callback to notify parent component
   const processNext = (onArrive?: (loc: string) => void) => {
     if (queueRef.current.length === 0) {
       busyRef.current = false;
@@ -28,22 +27,27 @@ export default function useTrashRobot() {
     lastLocRef.current = current.location;
     lastDistRef.current = current.distance;
 
+    console.log("Starting trip to:", current.location, "Distance:", current.distance);
+
     let dist = current.distance;
 
     intervalRef.current = setInterval(() => {
       if (cancelActiveRef.current) {
+        console.log("Trip cancelled mid-way!");
         clearInterval(intervalRef.current!);
         busyRef.current = false;
         return;
       }
 
       dist = Math.max(0, dist - 20);
-
       sendCommand(current.location, dist);
 
       if (dist === 0) {
+        console.log("Arrived at:", current.location);
         clearInterval(intervalRef.current!);
-        onArrive?.(current.location); // Update destination in Home.tsx
+        cancelActiveRef.current = false;
+        onArrive?.(current.location);
+
         setTimeout(() => processNext(onArrive), 3000);
       }
     }, 1000);
@@ -55,7 +59,9 @@ export default function useTrashRobot() {
     if (!busyRef.current) processNext(onArrive);
   };
 
+  // Cancel current trip and return home
   const cancel = (onArrive?: (loc: string) => void) => {
+    console.log("Cancel triggered!");  // trashRobot log
     cancelActiveRef.current = true;
     queueRef.current = [];
 
@@ -66,8 +72,10 @@ export default function useTrashRobot() {
       });
     }
 
+
+    mqttCancel();  
+
     processNext(onArrive);
-    cancelActiveRef.current = false;
   };
 
   return {

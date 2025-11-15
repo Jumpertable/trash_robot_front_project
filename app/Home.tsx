@@ -9,7 +9,7 @@ import useTrashRobot from "./hooks/trashRobot";
 
 export default function Home() {
   const { status, logs, clearLogs, lidState, destination: mqttDestination } = useMQTT();
-  const { sendCommand, addDestination, cancel, processNext } = useTrashRobot();
+  const { sendCommand, cancel, processNext } = useTrashRobot();
 
   const [destination, setDestination] = useState(mqttDestination);
   const [notification, setNotification] = useState("");
@@ -58,8 +58,10 @@ export default function Home() {
       <DestButtons
         sendCommand={sendCommand}
         clearLogs={clearLogs}
-        cancel={() => cancel((loc: string) => setDestination(loc))}
-      />
+    cancel={() => {
+    console.log("Cancel triggered from home.tsx");
+    cancel((loc: string) => setDestination(loc));
+  }}      />
 
       <LogsPanel
         logs={logs}

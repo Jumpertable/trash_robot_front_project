@@ -35,7 +35,7 @@ export default function RobotButtons({
 
   return (
     <div className="grid grid-cols-2 gap-4 mb-6 w-full max-w-md">
-      {/* Destination Buttons */}
+      {/*Destination Buttons */}
       {destinations.map((d) => (
         <button
           key={d.name}
@@ -46,12 +46,12 @@ export default function RobotButtons({
         </button>
       ))}
 
-      {/* Cancel & Return */}
+      {/* Cancel and Return */}
       <button
         onClick={cancel}
         className="bg-yellow-400 hover:bg-yellow-500 text-white py-3 px-6 rounded-xl shadow"
       >
-        Cancel & Return Home
+        Cancel and Return Home
       </button>
     </div>
   );
