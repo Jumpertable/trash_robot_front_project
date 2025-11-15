@@ -46,14 +46,6 @@ export default function RobotButtons({
         </button>
       ))}
 
-      {/* Clear Logs */}
-      <button
-        onClick={clearLogs}
-        className="bg-red-400 hover:bg-red-500 text-white py-3 px-6 rounded-xl shadow"
-      >
-        Clear Logs
-      </button>
-
       {/* Cancel & Return */}
       <button
         onClick={cancel}

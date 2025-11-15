@@ -8,29 +8,34 @@ import { useMQTT } from "./components/MQTT";
 import useTrashRobot from "./hooks/trashRobot";
 
 export default function Home() {
-  const { status, logs, lidState, destination, sendCommand: sendMQTTCommand } = useMQTT();
-  const { sendCommand, cancel } = useTrashRobot();
+  const { status, logs, clearLogs, lidState, destination: mqttDestination } = useMQTT();
+  const { sendCommand, addDestination, cancel, processNext } = useTrashRobot();
 
+  const [destination, setDestination] = useState(mqttDestination);
   const [notification, setNotification] = useState("");
-  
 
-  // Show lid notifications
+  // Sync MQTT 
+  useEffect(() => {
+    setDestination(mqttDestination);
+  }, [mqttDestination]);
+
+  // lid notifications
   useEffect(() => {
     if (lidState === "Open") setNotification("Lid opened!");
     else if (lidState === "Closed") setNotification("Lid closed!");
   }, [lidState]);
 
-  // Auto-hide notifications
+  //go away notifications
   useEffect(() => {
     if (!notification) return;
-    const timer = setTimeout(() => setNotification(""), 3000);
+    const timer = setTimeout(() => setNotification(""), 4000);
     return () => clearTimeout(timer);
   }, [notification]);
 
-  // Clear logs
-  const clearLogs = () => {
-0
-  };
+  // Start processing queue on mount
+  useEffect(() => {
+    processNext((loc: string) => setDestination(loc));
+  }, []);
 
   return (
     <div className="min-h-screen bg-gray-100 flex flex-col items-center p-8">
@@ -53,7 +58,7 @@ export default function Home() {
       <DestButtons
         sendCommand={sendCommand}
         clearLogs={clearLogs}
-        cancel={cancel}
+        cancel={() => cancel((loc: string) => setDestination(loc))}
       />
 
       <LogsPanel

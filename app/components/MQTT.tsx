@@ -12,6 +12,7 @@ interface MQTTContextType {
   client: MqttClient | null;
   status: string;
   logs: string[];
+  clearLogs: () => void;
   lidState: string;
   destination: string;
   sendCommand: (loc: string, dist: number) => void;
@@ -84,8 +85,18 @@ export default function MQTTProvider({ children }: MQTTProviderProps) {
     setLogs(prev => [...prev, `Sent command: ${loc}`]);
   };
 
+    const clearLogs = () => setLogs([]);
+
   return (
-    <MQTTContext.Provider value={{ client: clientRef.current, status, logs, lidState, destination, sendCommand }}>
+    <MQTTContext.Provider value={{
+      client: clientRef.current,
+      status,
+      logs,
+      clearLogs,
+      lidState,
+      destination,
+      sendCommand
+    }}>
       {children}
     </MQTTContext.Provider>
   );

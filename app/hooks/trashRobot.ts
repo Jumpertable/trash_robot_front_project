@@ -16,7 +16,8 @@ export default function useTrashRobot() {
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const cancelActiveRef = useRef(false);
 
-  const processNext = () => {
+  // Add onArrive callback to notify parent component
+  const processNext = (onArrive?: (loc: string) => void) => {
     if (queueRef.current.length === 0) {
       busyRef.current = false;
       return;
@@ -28,7 +29,6 @@ export default function useTrashRobot() {
     lastDistRef.current = current.distance;
 
     let dist = current.distance;
-    const direction = current.location === "Home" ? "return" : "go";
 
     intervalRef.current = setInterval(() => {
       if (cancelActiveRef.current) {
@@ -43,24 +43,30 @@ export default function useTrashRobot() {
 
       if (dist === 0) {
         clearInterval(intervalRef.current!);
-        setTimeout(processNext, 3000);
+        onArrive?.(current.location); // Update destination in Home.tsx
+        setTimeout(() => processNext(onArrive), 3000);
       }
     }, 1000);
   };
 
-  const addDestination = (loc: string, dist: number) => {
+  const addDestination = (loc: string, dist: number, onArrive?: (loc: string) => void) => {
     if (!busyRef.current && lastLocRef.current === loc && loc !== "Home") return;
     queueRef.current.push({ location: loc, distance: dist });
-    if (!busyRef.current) processNext();
+    if (!busyRef.current) processNext(onArrive);
   };
 
-  const cancel = () => {
+  const cancel = (onArrive?: (loc: string) => void) => {
     cancelActiveRef.current = true;
     queueRef.current = [];
+
     if (lastLocRef.current !== "Home") {
-      queueRef.current.push({ location: "Home", distance: lastDistRef.current });
+      queueRef.current.push({
+        location: "Home",
+        distance: lastDistRef.current,
+      });
     }
-    processNext();
+
+    processNext(onArrive);
     cancelActiveRef.current = false;
   };
 
@@ -68,5 +74,6 @@ export default function useTrashRobot() {
     sendCommand,
     addDestination,
     cancel,
+    processNext,
   };
 }
