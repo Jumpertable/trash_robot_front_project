@@ -17,63 +17,77 @@ export default function Home() {
   const [status, setStatus] = useState("Disconnected");
   const [destination, setDestination] = useState("Home");
   const [logs, setLogs] = useState<string[]>([]);
+  const [lidState, setLidState] = useState("Unknown");
+  const [notification, setNotification] = useState("");
 
   const clientRef = useRef<mqtt.MqttClient | null>(null);
   const queueRef = useRef<Destination[]>([]);
   const busyRef = useRef(false);
-  const visitedRef = useRef<Visited[]>([]);
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const lastLocRef = useRef("Home");
   const lastDistRef = useRef(0);
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const cancelActiveRef = useRef(false);
 
-
-  //mQTT setup
-
+  // Connect to MQTT
   useEffect(() => {
-    const url = "ws://192.168.1.116:9001";
-    const mqttClient = mqtt.connect(url);
-    clientRef.current = mqttClient;
-    mqttClient.subscribe("trashrobot/status");
+    const url = "ws://192.168.1.102:9001"; // change to your MQTT WebSocket URL
+    const client = mqtt.connect(url);
+    clientRef.current = client;
 
-    mqttClient.on("connect", () => {
+    client.on("connect", () => {
       setStatus("Connected to MQTT");
-      mqttClient.subscribe("destination");
-      mqttClient.subscribe("logs");
+      client.subscribe(["trashrobot/status", "destination", "logs"]);
       setLogs(prev => [...prev, "✅ Connected to MQTT"]);
     });
 
-mqttClient.on("message", (topic, message) => {
-  const payload = message.toString();
+    client.on("message", (topic, message) => {
+      const payload = message.toString();
 
-  if (topic === "logs") {
-    setLogs(prev => [...prev, payload]);
-  } else if (topic === "destination") {
-    try {
-      const data = JSON.parse(payload);
-      setDestination(data.location || "Unknown");
-    } catch {
-      setDestination(payload);
-    }
-  } else if (topic === "trashrobot/status") {
-    setLogs(prev => [...prev, payload]);
-  }
-});
+      // Lid monitoring
+      if (topic === "trashrobot/status") {
+        if (payload.includes("Lid Open")) {
+          setLidState("Open");
+          setNotification("Lid opened!");
+        } else if (payload.includes("Lid Closed")) {
+          setLidState("Closed");
+          setNotification("Lid closed!");
+        }
+        setLogs(prev => [...prev, payload]);
+      }
 
+      // Logs
+      if (topic === "logs") setLogs(prev => [...prev, payload]);
 
-    mqttClient.on("error", (err) => {
+      // Destination updates
+      if (topic === "destination") {
+        try {
+          const data = JSON.parse(payload);
+          setDestination(data.location || "Unknown");
+        } catch {
+          setDestination(payload);
+        }
+      }
+    });
+
+    client.on("error", (err) => {
       console.error("MQTT Error:", err);
       setStatus("MQTT Connection Error");
       setLogs(prev => [...prev, "MQTT Connection Error"]);
     });
 
     return () => {
-      mqttClient.end();
+      client.end();
     };
   }, []);
 
+  // Auto-hide lid notifications
+  useEffect(() => {
+    if (!notification) return;
+    const timer = setTimeout(() => setNotification(""), 3000);
+    return () => clearTimeout(timer);
+  }, [notification]);
 
-  //Process next destination
+  // Process queued destinations
   const processNext = () => {
     if (queueRef.current.length === 0) {
       busyRef.current = false;
@@ -130,10 +144,9 @@ mqttClient.on("message", (topic, message) => {
         }));
 
         if (direction !== "return") {
-          visitedRef.current.push({ location: current.location, timestamp: Date.now() });
           setLogs(prev => [...prev, `Arrived at ${current.location}`]);
         }
-        setTimeout(processNext, 3000);
+        setTimeout(processNext, 1000);
       }
     }, 1000);
   };
@@ -155,33 +168,29 @@ mqttClient.on("message", (topic, message) => {
     else setLogs(prev => [...prev, "Robot busy. Added to queue."]);
   };
 
+  // Cancel and return home
+  const cancel = () => {
+    setLogs(prev => [...prev, "⚠️ Cancel pressed — returning home"]);
+    clientRef.current?.publish("cancel", "true");
 
-//Cancel and return home
-const cancel = () => {
-  setLogs(prev => [...prev, "⚠️ Cancel pressed — returning home"]);
-  clientRef.current?.publish("cancel", "true");
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
 
+    cancelActiveRef.current = true;
+    queueRef.current = [];
 
-  if (intervalRef.current) {
-    clearInterval(intervalRef.current);
-    intervalRef.current = null;
-  }
+    if (lastLocRef.current !== "Home") {
+      queueRef.current.push({ location: "Home", distance: lastDistRef.current });
+    }
 
-  cancelActiveRef.current = true;
-  queueRef.current = [];
+    processNext();
+    cancelActiveRef.current = false;
+    busyRef.current = true;
+  };
 
-  if (lastLocRef.current !== "Home") {
-    queueRef.current.push({ location: "Home", distance: lastDistRef.current });
-  }
-
-  processNext();
-
-  cancelActiveRef.current = false;
-  busyRef.current = true;
-};
-
-
-  //Send command
+  // Send movement command
   const sendCommand = (loc: string, dist: number) => {
     clientRef.current?.publish("buttons/robot", JSON.stringify({ location: loc, distance: dist }));
     setLogs(prev => [...prev, `Sent: ${loc}`]);
@@ -190,7 +199,14 @@ const cancel = () => {
 
   const clearLogs = () => setLogs([]);
 
-  //UI
+  // UI colors
+  const colorMap: Record<string, string> = {
+    orange: "bg-orange-400 hover:bg-orange-500",
+    green: "bg-green-400 hover:bg-green-500",
+    blue: "bg-blue-400 hover:bg-blue-500",
+    purple: "bg-purple-400 hover:bg-purple-500",
+    pink: "bg-pink-400 hover:bg-pink-500",
+  };
 
   const destinations = [
     { name: "Home", distance: 100, color: "orange" },
@@ -206,8 +222,15 @@ const cancel = () => {
 
       {/* Status */}
       <div className="mb-4 px-4 py-2 bg-white rounded-xl shadow text-gray-600">
-        Status: <strong>{status}</strong> | Current: <strong>{destination || "—"}</strong>
+        Status: <strong>{status}</strong> | Current: <strong>{destination}</strong> | Lid: <strong>{lidState}</strong>
       </div>
+
+      {/* Notification */}
+      {notification && (
+        <div className="fixed top-4 right-4 bg-blue-400 text-white px-4 py-2 rounded shadow-lg">
+          {notification}
+        </div>
+      )}
 
       {/* Buttons */}
       <div className="grid grid-cols-2 gap-4 mb-6 w-full max-w-md">
@@ -215,7 +238,7 @@ const cancel = () => {
           <button
             key={d.name}
             onClick={() => sendCommand(d.name, d.distance)}
-            className={`bg-${d.color}-400 hover:bg-${d.color}-500 text-white py-3 px-6 rounded-xl shadow`}
+            className={`${colorMap[d.color]} text-white py-3 px-6 rounded-xl shadow`}
           >
             {d.name}
           </button>
