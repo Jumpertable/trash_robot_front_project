@@ -21,6 +21,7 @@ interface MQTTContextType {
   logs: string[];
   clearLogs: () => void;
   lidState: string;
+  lineStatus: string;
   destination: string;
   sendCommand: (loc: string, dist: number) => void;
   cancel: () => void;
@@ -36,6 +37,7 @@ export default function MQTTProvider({ children }: MQTTProviderProps) {
   const [status, setStatus] = useState("Disconnected");
   const [logs, setLogs] = useState<string[]>([]);
   const [lidState, setLidState] = useState("Unknown");
+  const [lineStatus, setLineStatus] = useState("Unknown");
   const [destination, setDestination] = useState("Home");
 
   const clientRef = useRef<MqttClient | null>(null);
@@ -49,29 +51,32 @@ export default function MQTTProvider({ children }: MQTTProviderProps) {
 
     client.on("connect", () => {
       setStatus("Connected");
-      client.subscribe(["trashrobot/status", "destination", "logs"]);
+      client.subscribe(["trashrobot/status", "trashrobot/line", "destination", "logs"]);
       setLogs((prev) => [...prev, "✅ Connected to MQTT"]);
     });
 
     client.on("message", (topic, message) => {
       const payload = message.toString();
-
-      // STATUS HANDLER
+//lid please work
       if (topic === "trashrobot/status") {
         if (payload.includes("Lid Open")) setLidState("Open");
         else if (payload.includes("Lid Closed")) setLidState("Closed");
 
-        // ARRIVED HANDLER
         if (payload.startsWith("Arrived at")) {
           const loc = payload.replace("Arrived at ", "").replace("!", "");
-          setDestination(loc); // <-- correctly update CURRENT
-          setLogs((prev) => [...prev, `🚩 Arrived at ${loc}`]);
+          setDestination(loc);
+          setLogs((prev) => [...prev, `Arrived at ${loc}`]);
         }
 
         setLogs((prev) => [...prev, payload]);
       }
 
-      // LOG
+      //LINEFOLLWR
+      if (topic === "trashrobot/line") {
+        setLineStatus(payload);
+      }
+
+      //log
       if (topic === "logs") {
         setLogs((prev) => [...prev, payload]);
       }
@@ -101,20 +106,19 @@ export default function MQTTProvider({ children }: MQTTProviderProps) {
     };
   }, []);
 
-  // CANCEL FUNCTION
+  //CANCEL!!!!!
 const cancel = () => {
   if (!clientRef.current || status !== "Connected") {
-    setLogs((prev) => [...prev, "⚠ Cannot cancel — MQTT not ready"]);
+    setLogs((prev) => [...prev, "Canot cancel. MQTT not ready"]);
     return;
   }
 
-  console.log("Cancel triggered! Publishing to topic 'cancel'"); // <--- debug log
-  setLogs((prev) => [...prev, "Cancel — robot returning home"]);
+  console.log("Cancel triggered! Publishing to topic 'cancel'"); //debuggre
+  setLogs((prev) => [...prev, "Cancel! Binny is returning home!"]);
   clientRef.current.publish("cancel", "cancel");
 };
 
-  // SEND COMMAND
-
+  //SEND COMMAND
   const sendCommand = (loc: string, dist: number) => {
     clientRef.current?.publish(
       "buttons/robot",
@@ -136,6 +140,7 @@ const cancel = () => {
         destination,
         sendCommand,
         cancel,
+        lineStatus
       }}
     >
       {children}

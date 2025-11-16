@@ -8,7 +8,7 @@ import { useMQTT } from "./components/MQTT";
 import useTrashRobot from "./hooks/trashRobot";
 
 export default function Home() {
-  const { status, logs, clearLogs, lidState, destination: mqttDestination } = useMQTT();
+  const { status, logs, clearLogs, lidState, lineStatus, destination: mqttDestination } = useMQTT();
   const { sendCommand, cancel, processNext } = useTrashRobot();
 
   const [destination, setDestination] = useState(mqttDestination);
@@ -19,7 +19,7 @@ export default function Home() {
     setDestination(mqttDestination);
   }, [mqttDestination]);
 
-  // lid notifications
+  //lid notif
   useEffect(() => {
     if (lidState === "Open") setNotification("Lid opened!");
     else if (lidState === "Closed") setNotification("Lid closed!");
@@ -47,6 +47,7 @@ export default function Home() {
         status={status}
         destination={destination}
         lidState={lidState}
+        lineStatus={lineStatus}
       />
 
       {notification && (

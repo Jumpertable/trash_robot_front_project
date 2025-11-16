@@ -59,9 +59,9 @@ export default function useTrashRobot() {
     if (!busyRef.current) processNext(onArrive);
   };
 
-  // Cancel current trip and return home
+  //Cancel trip and return home
   const cancel = (onArrive?: (loc: string) => void) => {
-    console.log("Cancel triggered!");  // trashRobot log
+    console.log("Cancel triggered!");  //log
     cancelActiveRef.current = true;
     queueRef.current = [];
 
