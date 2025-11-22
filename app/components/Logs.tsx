@@ -1,36 +1,92 @@
 "use client";
 
-interface LogsPanel {
+interface LogsPanelProps {
   logs: string[];
   clearLogs: () => void;
 }
 
-export default function LogsPanel({ logs, clearLogs }: LogsPanel) {
+const logColors: Record<string, string> = {
+  Home: "text-orange-600",
+  Kitchen: "text-green-600",
+  "Living Room": "text-blue-600",
+  Bedroom: "text-purple-600",
+  Bathroom: "text-pink-600",
+};
+
+function getRoomNameFromLog(log: string) {
+  const rooms = Object.keys(logColors);
+  return rooms.find((room) => log.includes(room)) || "";
+}
+
+export default function LogsPanel({ logs, clearLogs }: LogsPanelProps) {
   return (
-    <div className="w-full max-w-2xl mt-8 bg-white rounded-xl shadow p-4">
-      <div className="flex justify-between items-center mb-3">
-        <h2 className="text-xl font-semibold text-gray-700">Logs</h2>
+    <div
+      className="
+        w-full max-w-2xl
+        rounded-3xl
+        shadow-2xl 
+        p-6 
+        backdrop-blur-xl 
+        bg-white/40
+        border border-white/50
+      "
+    >
+      <div className="flex justify-between items-center mb-4">
+        <h2 className="text-2xl font-semibold text-sky-800 drop-shadow-sm">
+          Logs
+        </h2>
 
         <button
           onClick={clearLogs}
-          className="px-3 py-1 bg-red-500 hover:bg-red-600 text-white rounded-lg text-sm"
+          className="
+            px-4 py-1.5 
+            rounded-xl 
+            text-white 
+            text-sm 
+            shadow 
+            bg-gradient-to-r from-red-400 to-red-600
+            hover:opacity-90
+            transition
+            cursor-pointer
+          "
         >
           Clear
         </button>
       </div>
 
-      <div className="h-60 overflow-y-auto bg-gray-50 rounded-lg p-3 border">
+      {/* Logs container */}
+      <div
+        className="
+          h-100 
+          overflow-y-auto 
+          rounded-2xl 
+          p-4 
+          border border-white/40 
+          bg-white/30 
+          backdrop-blur-xl 
+          shadow-inner
+        "
+      >
         {logs.length === 0 ? (
-          <p className="text-gray-400 text-sm">No logs yet…</p>
+          <p className="text-gray-500 text-sm italic">No logs yet…</p>
         ) : (
-          logs.map((log, index) => (
-            <div
-              key={index}
-              className="text-sm text-gray-700 py-1 border-b last:border-none"
-            >
-              {log}
-            </div>
-          ))
+          [...logs].reverse().map((log, index) => {
+            const room = getRoomNameFromLog(log);
+            const colorClass = room ? logColors[room] : "text-gray-800";
+
+            return (
+              <div
+                key={index}
+                className={`
+                  text-sm py-1 
+                  border-b border-white/40 last:border-none
+                  ${colorClass}
+                `}
+              >
+                {log}
+              </div>
+            );
+          })
         )}
       </div>
     </div>

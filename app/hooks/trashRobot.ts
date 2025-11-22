@@ -71,8 +71,6 @@ export default function useTrashRobot() {
         distance: lastDistRef.current,
       });
     }
-
-
     mqttCancel();  
 
     processNext(onArrive);
