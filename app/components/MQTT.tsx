@@ -36,8 +36,8 @@ interface MQTTProviderProps {
 export default function MQTTProvider({ children }: MQTTProviderProps) {
   const [status, setStatus] = useState("Disconnected");
   const [logs, setLogs] = useState<string[]>([]);
-  const [lidState, setLidState] = useState("Unknown");
-  const [lineStatus, setLineStatus] = useState("Unknown");
+  const [lidState, setLidState] = useState("Closed");
+  const [lineStatus, setLineStatus] = useState("I'm lost");
   const [destination, setDestination] = useState("Home");
 
   const clientRef = useRef<MqttClient | null>(null);
@@ -45,7 +45,7 @@ export default function MQTTProvider({ children }: MQTTProviderProps) {
 
   // MQTT CONNECT
   useEffect(() => {
-    const url = "ws://192.168.1.102:9001";
+    const url = "wss://broker.hivemq.com:8884/mqtt"//"ws://192.168.1.102:9001";
     const client = mqtt.connect(url);
     clientRef.current = client;
 

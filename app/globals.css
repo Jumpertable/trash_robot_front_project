@@ -2,7 +2,6 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Light / Dark Theme Variables */
 :root {
   --background: #ffffff;
   --foreground: #171717;
@@ -25,4 +24,8 @@ body {
 
 code, pre {
   font-family: var(--font-mono), monospace;
+}
+
+html.dark {
+  color-scheme: dark;
 }

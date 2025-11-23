@@ -5,12 +5,12 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Trash Robot Dashboard",
-  description: "Control your Trash Robot from your browser",
+  description: "Control your Trash Robot from your Computer/Phone",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+<html lang="en" suppressHydrationWarning>
       <head>
         <link rel="icon" href="/binny.ico" />
       </head>

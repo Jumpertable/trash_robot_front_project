@@ -54,7 +54,7 @@ export default function LogsPanel({ logs, clearLogs }: LogsPanelProps) {
         </button>
       </div>
 
-      {/* Logs container */}
+      {/*Logs*/}
       <div
         className="
           h-100 
