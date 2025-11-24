@@ -15,7 +15,7 @@ export default function Home() {
   const [destination, setDestination] = useState(mqttDestination);
   const [notification, setNotification] = useState("");
 
-  // Sync MQTT 
+  //MQTT 
   useEffect(() => {
     setDestination(mqttDestination);
   }, [mqttDestination]);

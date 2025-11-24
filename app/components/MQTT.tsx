@@ -45,7 +45,7 @@ export default function MQTTProvider({ children }: MQTTProviderProps) {
 
   // MQTT CONNECT
   useEffect(() => {
-    const url = "wss://broker.hivemq.com:8884/mqtt"//"ws://192.168.1.102:9001";
+    const url = "ws://10.245.47.109:9001"//"wss://broker.emqx.io/mqtt";
     const client = mqtt.connect(url);
     clientRef.current = client;
 
@@ -81,7 +81,7 @@ export default function MQTTProvider({ children }: MQTTProviderProps) {
         setLogs((prev) => [...prev, payload]);
       }
 
-      // DESTINATION + DISTANCE
+      // DESTINATION AND DISTANCE PLEASE PLEASE
       if (topic === "destination") {
         try {
           const data: DestinationMessage = JSON.parse(payload);
@@ -118,7 +118,7 @@ const cancel = () => {
   clientRef.current.publish("cancel", "cancel");
 };
 
-  //SEND COMMAND
+  //send da commands
   const sendCommand = (loc: string, dist: number) => {
     clientRef.current?.publish(
       "buttons/robot",
